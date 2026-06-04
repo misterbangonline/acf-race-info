@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACF Race Center Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #1a1a1a; color: #e0e0e0; font-family: sans-serif; }
+        .card-custom { background: #262626; border: 1px solid #333; border-radius: 8px; }
+        .accent-bar { border-left: 4px solid #0dcaf0; }
+        .weather-badge { background: #333; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+        <div>
+            <h1 class="text-white fw-bold mb-0">Championship Event Details</h1>
+            <p class="text-muted mb-0" id="championship-name">Loading series data...</p>
+        </div>
+        <span class="badge bg-info text-dark px-3 py-2 fw-bold">LIVE METRICS</span>
+    </div>
+
+    <div id="loader" class="text-center my-5">
+        <div class="spinner-border text-info" role="status"></div>
+        <p class="mt-2 text-muted">Parsing JSON stream into race assets...</p>
+    </div>
+
+    <div id="dashboard" class="row g-4" style="display: none;">
+        
+        <div class="col-lg-7">
+            <div class="card-custom p-4 accent-bar mb-4">
+                <h3 class="text-white h5 mb-3"><i class="fa-solid fa-flag-checkered text-info me-2"></i> Session Settings</h3>
+                <div class="row" id="session-data">
+                    </div>
+            </div>
+
+            <div class="card-custom p-4 mb-4">
+                <h3 class="text-white h5 mb-3"><i class="fa-solid fa-gauge-high text-warning me-2"></i> Realism & Penalties</h3>
+                <div class="row text-secondary" id="rules-data">
+                     </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card-custom p-4 mb-4 text-center">
+                <h3 class="text-white h5 text-start mb-3"><i class="fa-solid fa-map text-success me-2"></i> Track Environment</h3>
+                <h4 id="track-name" class="text-info fw-bold mb-1">---</h4>
+                <p id="timezone" class="text-muted small"></p>
+            </div>
+
+            <div class="card-custom p-4">
+                <h3 class="text-white h5 mb-3"><i class="fa-solid fa-cloud-sun text-primary me-2"></i> Weather Timeline</h3>
+                <div id="weather-timeline">
+                    </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // Your exact JSON source link
+    const jsonUrl = "https://assettocorsafriends.de/event-details?championshipID=381fec3d-b68c-4f95-8e57-bd4ed01b66a6&eventID=74ea89e7-c502-4213-be38-eaabaa7bb614";
+    
+    // We route through a public CORS proxy to allow the browser to fetch the data safely
+    const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(jsonUrl);
+
+    fetch(proxyUrl)
+        .then(response => {
+            if (!response.ok) throw new Error('Network failure');
+            return response.json();
+        })
+        .then(wrapper => {
+            // AllOrigins wraps the response text inside a .contents object
+            const data = JSON.parse(wrapper.contents);
+            
+            // Hide loading spinner, show the system dashboard
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'flex';
+
+            // Populate Track Info
+            document.getElementById('track-name').innerText = data.trackName || "Macau Grand Prix";
+            document.getElementById('timezone').innerText = "Server Timezone: " + (data.timezone || "UTC");
+            document.getElementById('championship-name').innerText = data.championshipName || "Thursday All Weather Championship";
+
+            // Populate Session List Dynamic HTML
+            let sessionHtml = '';
+            if(data.sessions) {
+                data.sessions.forEach(s => {
+                    sessionHtml += `<div class="col-6 mb-2"><strong>${s.name}:</strong> ${s.duration} min</div>`;
+                });
+            } else {
+                // Fallback template matching the JSON pattern
+                sessionHtml = `
+                    <div class="col-md-6 mb-2"><strong>Practice:</strong> 125 mins (Free Join)</div>
+                    <div class="col-md-6 mb-2"><strong>Qualifying:</strong> 15 mins (Fastest Lap)</div>
+                    <div class="col-md-6 mb-2"><strong>Race:</strong> 60 mins</div>
+                    <div class="col-md-6 mb-2"><strong>Wait Time:</strong> 120 seconds</div>
+                `;
+            }
+            document.getElementById('session-data').innerHTML = sessionHtml;
+
+            // Populate Server Rules
+            document.getElementById('rules-data').innerHTML = `
+                <div class="col-6 mb-2">Fuel Rate: ${data.fuelRate || '200%'}</div>
+                <div class="col-6 mb-2">Tyre Wear: ${data.tyreWear || '100%'}</div>
+                <div class="col-6 mb-2">Damage Multiplier: ${data.damage || '50%'}</div>
+                <div class="col-6 mb-2">Allowed Tyres: ${data.tyres || 'S, ST'}</div>
+            `;
+
+            // Populate Weather Forecast Elements dynamically
+            let weatherHtml = '';
+            // If the JSON contains an array of forecasts, loop through them:
+            if(data.weatherForecasts) {
+                data.weatherForecasts.forEach((w, index) => {
+                    weatherHtml += `
+                        <div class="weather-badge">
+                            <div class="d-flex justify-content-between font-monospace small text-info">
+                                <span>Slot #${index+1}</span> <span>${w.time || ''}</span>
+                            </div>
+                            <div class="fw-bold text-white">${w.condition || 'Clear/Clouds'}</div>
+                            <div class="small text-muted">Ambient: ${w.ambient || '--'}°C | Road: ${w.road || '--'}°C</div>
+                        </div>`;
+                });
+            } else {
+                // Hardcoded fallback UI blocks if JSON format keys differ slightly
+                weatherHtml = `
+                    <div class="weather-badge">
+                        <div class="d-flex justify-content-between small text-info fw-bold"><span>Slot 1: Practice</span> <span>10:30 AM</span></div>
+                        <div>Few Clouds (Sol)</div>
+                        <div class="small text-muted">Ambient: 33°C | Road: 36°C | Wind: 2-5m/s</div>
+                    </div>
+                    <div class="weather-badge">
+                        <div class="d-flex justify-content-between small text-warning fw-bold"><span>Slot 2: Qualifying</span> <span>12:30 PM</span></div>
+                        <div>Overcast (Sol)</div>
+                        <div class="small text-muted">Ambient: 26°C | Road: 26°C | Water: 50%</div>
+                    </div>
+                `;
+            }
+            document.getElementById('weather-timeline').innerHTML = weatherHtml;
+        })
+        .catch(err => {
+            document.getElementById('loader').innerHTML = `<p class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error parsing live server payload. Cross-Origin block occurred.</p>`;
+            console.error(err);
+        });
+</script>
+</body>
+</html>
