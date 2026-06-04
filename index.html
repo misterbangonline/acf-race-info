@@ -63,24 +63,20 @@
 </div>
 
 <script>
-    // Your exact JSON source link
+// Your exact JSON source link
     const jsonUrl = "https://assettocorsafriends.de/event-details?championshipID=381fec3d-b68c-4f95-8e57-bd4ed01b66a6&eventID=74ea89e7-c502-4213-be38-eaabaa7bb614";
     
-    // We route through a public CORS proxy to allow the browser to fetch the data safely
-    const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(jsonUrl);
+    // Using CorsProxy.io - it directly prepends to the URL and doesn't wrap the JSON object
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(jsonUrl);
 
     fetch(proxyUrl)
         .then(response => {
             if (!response.ok) throw new Error('Network failure');
-            return response.json();
+            return response.json(); // CorsProxy returns the clean JSON directly
         })
-        .then(wrapper => {
-            // AllOrigins wraps the response text inside a .contents object
-            const data = JSON.parse(wrapper.contents);
-            
+        .then(data => {
             // Hide loading spinner, show the system dashboard
             document.getElementById('loader').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'flex';
 
             // Populate Track Info
             document.getElementById('track-name').innerText = data.trackName || "Macau Grand Prix";
